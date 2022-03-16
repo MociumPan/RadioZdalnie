@@ -12,6 +12,8 @@
 #include <SPI.h>
 #include <Ethernet.h>
 
+int led = 13;
+String readString;
 // Wiznet MAC beginning 00-08-DC
 // 
 byte mac[] = {
@@ -25,6 +27,8 @@ IPAddress ip(192, 168, 50, 77);
 EthernetServer server(80);
 
 void setup() {
+
+  pinMode(led, OUTPUT);
   // You can use Ethernet.init(pin) to configure the CS pin
   Ethernet.init(10);  // Most Arduino shields
 
@@ -66,7 +70,14 @@ void loop() {
     while (client.connected()) {
       if (client.available()) {
         char c = client.read();
-        Serial.write(c);
+        ///Serial.write(c);
+
+        //read char by char HTTP request
+        if (readString.length() < 100) {
+          //store characters to string
+          readString += c;
+          //Serial.print(c);
+         }
         // if you've gotten to the end of the line (received a newline
         // character) and the line is blank, the http request has ended,
         // so you can send a reply
@@ -75,20 +86,28 @@ void loop() {
           client.println("HTTP/1.1 200 OK");
           client.println("Content-Type: text/html");
           client.println("Connection: close");  // the connection will be closed after completion of the response
-          client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+          ///client.println("Refresh: 5");  // refresh the page automatically every 5 sec
           client.println();
           client.println("<!DOCTYPE HTML>");
-          client.println("<html>");
-          // output the value of each analog input pin
-          for (int analogChannel = 0; analogChannel < 6; analogChannel++) {
-            int sensorReading = analogRead(analogChannel);
-            client.print("analog input ");
-            client.print(analogChannel);
-            client.print(" is ");
-            client.print(sensorReading);
-            client.println("<br />");
-          }
-          client.println("</html>");
+       client.println("<HTML>");
+           client.println("<HEAD>");
+           client.println("<meta name='apple-mobile-web-app-capable' content='yes' />");
+           client.println("<meta name='apple-mobile-web-app-status-bar-style' content='black-translucent' />");
+           client.println("<link rel='stylesheet' type='text/css' href='https://randomnerdtutorials.com/ethernetcss.css' />");
+           client.println("<TITLE>Random Nerd Tutorials Project</TITLE>");
+           client.println("</HEAD>");
+           client.println("<BODY>");
+           client.println("<H2>Arduino with Ethernet Shield</H2>");
+           client.println("<br />");  
+           client.println("<a href=\"/?button1on\"\">Turn On LED</a>");
+           client.println("<a href=\"/?button1off\"\">Turn Off LED</a><br />");   
+           client.println("<br />");     
+           client.println("<br />"); 
+    
+           client.println("<p>Created by Rui Santos. Visit https://randomnerdtutorials.com for more projects!</p>");  
+           client.println("<br />"); 
+           client.println("</BODY>");
+           client.println("</HTML>");
           break;
         }
         if (c == '\n') {
@@ -105,5 +124,14 @@ void loop() {
     // close the connection:
     client.stop();
     Serial.println("client disconnected");
+
+    if (readString.indexOf("?button1on") >0){
+         digitalWrite(led, HIGH);
+     }
+     if (readString.indexOf("?button1off") >0){
+         digitalWrite(led, LOW);
+     }
+     //clearing string for next read
+     readString="";  
   }
 }
