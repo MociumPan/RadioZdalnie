@@ -1,12 +1,5 @@
 /*
-  Web Server
-
- A simple web server that shows the value of the analog input pins.
- using an Arduino Wiznet Ethernet shield.
-
- Circuit:
- * Ethernet shield attached to pins 10, 11, 12, 13
- * Analog inputs attached to pins A0 through A5 (optional)
+ WebService example used
 
  created 18 Dec 2009
  by David A. Mellis
@@ -14,18 +7,17 @@
  by Tom Igoe
  modified 02 Sept 2015
  by Arturo Guadalupi
- 
  */
 
 #include <SPI.h>
 #include <Ethernet.h>
 
-// Enter a MAC address and IP address for your controller below.
-// The IP address will be dependent on your local network:
+// Wiznet MAC beginning 00-08-DC
+// 
 byte mac[] = {
-  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
+  0x00, 0x08, 0xDC, 0xDE, 0xAD, 0x00
 };
-IPAddress ip(192, 168, 1, 177);
+IPAddress ip(192, 168, 50, 77);
 
 // Initialize the Ethernet server library
 // with the IP address and port you want to use
@@ -34,12 +26,7 @@ EthernetServer server(80);
 
 void setup() {
   // You can use Ethernet.init(pin) to configure the CS pin
-  //Ethernet.init(10);  // Most Arduino shields
-  //Ethernet.init(5);   // MKR ETH shield
-  //Ethernet.init(0);   // Teensy 2.0
-  //Ethernet.init(20);  // Teensy++ 2.0
-  //Ethernet.init(15);  // ESP8266 with Adafruit Featherwing Ethernet
-  //Ethernet.init(33);  // ESP32 with Adafruit Featherwing Ethernet
+  Ethernet.init(10);  // Most Arduino shields
 
   // Open serial communications and wait for port to open:
   Serial.begin(9600);
