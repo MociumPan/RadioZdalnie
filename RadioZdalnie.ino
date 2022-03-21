@@ -11,8 +11,13 @@
 
 #include <SPI.h>
 #include <Ethernet.h>
+#include <MCP7940.h>  // Include the MCP7940 RTC library
 
-int led = 13;
+
+MCP7940_Class MCP7940; 
+const uint8_t  SPRINTF_BUFFER_SIZE{32};  // Buffer size for sprintf()x
+char          inputBuffer[SPRINTF_BUFFER_SIZE];  // Buffer for sprintf()/sscanf()
+int led = 33;
 String readString;
 // Wiznet MAC beginning 00-08-DC
 // 
@@ -29,6 +34,7 @@ EthernetServer server(80);
 void setup() {
 
   pinMode(led, OUTPUT);
+  digitalWrite(led, HIGH);
   // You can use Ethernet.init(pin) to configure the CS pin
   Ethernet.init(10);  // Most Arduino shields
 
@@ -52,7 +58,28 @@ void setup() {
   if (Ethernet.linkStatus() == LinkOFF) {
     Serial.println("Ethernet cable is not connected.");
   }
-
+  while (!MCP7940.begin()) {  // Initialize RTC communications
+    Serial.println(F("Unable to find MCP7940M. Checking again in 3s."));  // Show error text
+    delay(3000);                                                          // wait a second
+  } 
+  Serial.print("bateria jest ");
+  if(MCP7940.getBattery()) Serial.println("wlaczona"); else Serial.println("wylaczona ");
+  
+  while (!MCP7940.deviceStatus()) {  // Turn oscillator on if necessary
+    Serial.println(F("Oscillator is off, turning it on."));
+    bool deviceStatus = MCP7940.deviceStart();  // Start oscillator and return state
+    if (!deviceStatus) {                        // If it didn't start
+      Serial.println(F("Oscillator did not start, trying again."));  // Show error and
+      delay(1000);                                                   // wait for a second
+    }                // of if-then oscillator didn't start
+  }                  // of while the oscillator is off
+  //MCP7940.adjust(); 
+  DateTime       now = MCP7940.now();
+  sprintf(inputBuffer, "%04d-%02d-%02d %02d:%02d:%02d",
+            now.year(),  // Use sprintf() to pretty print
+            now.month(), now.day(), now.hour(), now.minute(),
+            now.second());                         // date/time with leading zeros
+          Serial.println(inputBuffer);
   // start the server
   server.begin();
   Serial.print("server is at ");
@@ -63,6 +90,7 @@ void setup() {
 void loop() {
   // listen for incoming clients
   EthernetClient client = server.available();
+  DateTime       now = MCP7940.now();
   if (client) {
     Serial.println("new client");
     // an http request ends with a blank line
@@ -101,8 +129,13 @@ void loop() {
            client.println("<br />");  
            client.println("<a href=\"/?button1on\"\">Turn On LED</a>");
            client.println("<a href=\"/?button1off\"\">Turn Off LED</a><br />");   
-           client.println("<br />");     
-           client.println("<br />"); 
+           client.println("<br /><h2>");     
+           sprintf(inputBuffer, "%04d-%02d-%02d %02d:%02d:%02d",
+            now.year(),  // Use sprintf() to pretty print
+            now.month(), now.day(), now.hour(), now.minute(),
+            now.second());                         // date/time with leading zeros
+          client.println(inputBuffer);
+           client.println("</h2><br />"); 
     
            client.println("<p>Created by Rui Santos. Visit https://randomnerdtutorials.com for more projects!</p>");  
            client.println("<br />"); 
@@ -125,10 +158,10 @@ void loop() {
     client.stop();
     Serial.println("client disconnected");
 
-    if (readString.indexOf("?button1on") >0){
+    if (readString.indexOf("?button1off") >0){
          digitalWrite(led, HIGH);
      }
-     if (readString.indexOf("?button1off") >0){
+     if (readString.indexOf("?button1on") >0){
          digitalWrite(led, LOW);
      }
      //clearing string for next read
