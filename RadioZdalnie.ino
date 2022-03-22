@@ -13,6 +13,7 @@
 #include <Ethernet.h>
 #include <EthernetUdp.h>
 #include <MCP7940.h>  // Include the MCP7940 RTC library
+#include <Timezone.h>    // https://github.com/JChristensen/Timezone
 
 
 unsigned int localPort = 8888;       // local port to listen for UDP packets
@@ -42,7 +43,15 @@ EthernetServer server(80);
 // A UDP instance to let us send and receive packets over UDP
 EthernetUDP Udp;
 
-uint8_t   daySync; 
+uint8_t   daySync = 0; 
+uint8_t   dayAlarm = 0;
+uint8_t   daySleep = 0;
+
+// Central European Time (Frankfurt, Paris)
+TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 120};     // Central European Summer Time
+TimeChangeRule CET = {"CET ", Last, Sun, Oct, 3, 60};       // Central European Standard Time
+Timezone CE(CEST, CET);
+
 
 void setup() {
 
@@ -108,9 +117,14 @@ void setup() {
 
 void loop() {
   // listen for incoming clients
-  EthernetClient client = server.available();
-  DateTime       now = MCP7940.now();
+   EthernetClient client = server.available();
+   DateTime       teraz = MCP7940.now();
+   TimeChangeRule *tcr;        // pointer to the time change rule, use to get the TZ abbrev
+    uint32_t local_time = CE.toLocal(teraz.unixtime(), &tcr);
+    DateTime now = DateTime(local_time);
   if (client) {
+   
+    
     Serial.println("new client");
     // an http request ends with a blank line
     boolean currentLineIsBlank = true;
@@ -188,6 +202,24 @@ void loop() {
   }
   if(daySync != now.day() && now.hour() == 0)
     syncTime();
+  //////////////////////////////////////////////
+  //zalaczenie radia rano
+  //
+
+  if(dayAlarm != now.day() && now.hour() == 19 && now.minute() == 7)
+  {
+    digitalWrite(led, LOW);
+    dayAlarm = now.day();
+  }
+
+  //////////////////////////////////////////////
+  //wylaczenie radia
+  //
+  if(daySleep != now.day() && now.hour() == 19 && now.minute() == 8)
+  {
+    digitalWrite(led, HIGH);
+    daySleep = now.day();
+  }
 }
 
 void syncTime()
@@ -209,8 +241,6 @@ void syncTime()
     // combine the four bytes (two words) into a long integer
     // this is NTP time (seconds since Jan 1 1900):
     uint32_t secsSince1900 = highWord << 16 | lowWord;
-    Serial.print("Seconds since Jan 1 1900 = ");
-    Serial.println(secsSince1900);
 
     // now convert NTP time into everyday time:
     Serial.print("Unix time = ");
@@ -223,24 +253,12 @@ void syncTime()
     DateTime       nowrtc(epoch);
     MCP7940.calibrateOrAdjust(nowrtc);
 
-    // print the hour, minute and second:
-    Serial.print("The UTC time is ");       // UTC is the time at Greenwich Meridian (GMT)
-    Serial.print((epoch  % 86400L) / 3600); // print the hour (86400 equals secs per day)
-    Serial.print(':');
-    if (((epoch % 3600) / 60) < 10) {
-      // In the first 10 minutes of each hour, we'll want a leading '0'
-      Serial.print('0');
-    }
-    Serial.print((epoch  % 3600) / 60); // print the minute (3600 equals secs per minute)
-    Serial.print(':');
-    if ((epoch % 60) < 10) {
-      // In the first 10 seconds of each minute, we'll want a leading '0'
-      Serial.print('0');
-    }
-    Serial.println(epoch % 60); // print the second
     daySync = nowrtc.day();
     Serial.print("aktualizacja odbyla sie dnia: ");
     Serial.println(daySync);
+    
+    
+    
   }
 }
 
