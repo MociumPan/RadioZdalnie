@@ -14,7 +14,27 @@
 #include <EthernetUdp.h>
 #include <MCP7940.h>  // Include the MCP7940 RTC library
 #include <Timezone.h>    // https://github.com/JChristensen/Timezone
+#include <EEPROM.h>
 
+#define addr_conf        0x10
+#define budzik_on        0x01
+#define budzik_off       0x02
+
+#define addr_on_godzina  0x12
+#define addr_on_minuta   0x14
+
+#define addr_off_godzina  0x16
+#define addr_off_minuta   0x18
+
+byte budzik_conf;
+byte on_godzina;
+byte on_minuta;
+
+byte off_godzina;
+byte off_minuta;
+
+
+//byte value;
 
 unsigned int localPort = 8888;       // local port to listen for UDP packets
 
@@ -44,8 +64,11 @@ EthernetServer server(80);
 EthernetUDP Udp;
 
 uint8_t   daySync = 0; 
-uint8_t   dayAlarm = 0;
+uint8_t   dayAlarmOn = 0;
+uint8_t   dayAlarmOff = 0;
 uint8_t   daySleep = 0;
+uint8_t   daySleepHour = 30;
+uint8_t   daySleepMin = 60;
 
 // Central European Time (Frankfurt, Paris)
 TimeChangeRule CEST = {"CEST", Last, Sun, Mar, 2, 120};     // Central European Summer Time
@@ -61,7 +84,7 @@ void setup() {
   Ethernet.init(10);  // Most Arduino shields
 
   // Open serial communications and wait for port to open:
-  Serial.begin(9600);
+  Serial.begin(115200);
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
@@ -107,6 +130,8 @@ void setup() {
   Udp.begin(localPort);
   
   syncTime();
+
+  odczytBudzika();
   
   // start the server
   server.begin();
@@ -161,7 +186,14 @@ void loop() {
            client.println("<H2>Arduino with Ethernet Shield</H2>");
            client.println("<br />");  
            client.println("<a href=\"/?button1on\"\">Turn On LED</a>");
-           client.println("<a href=\"/?button1off\"\">Turn Off LED</a><br />");   
+           client.println("<a href=\"/?button1off\"\">Turn Off LED</a><br /><br />");   
+           
+           client.println("<a href=\"/?radioonset\"\">Turn On LED</a>");
+           client.println("<a href=\"/?radiooffset\"\">Turn Off LED</a><br /><br />");
+           
+           
+           client.println("<a href=\"/?sleep1hour\"\">Sleep 1 hour</a>");
+           client.println("<a href=\"/?sleep2hour\"\">Sleep 2 hours</a><br /><br />");
            client.println("<br /><h2>");     
            sprintf(inputBuffer, "%04d-%02d-%02d %02d:%02d:%02d",
             now.year(),  // Use sprintf() to pretty print
@@ -197,29 +229,66 @@ void loop() {
      if (readString.indexOf("?button1on") >0){
          digitalWrite(led, LOW);
      }
+
+     if (readString.indexOf("?sleep1hour") >0){
+         digitalWrite(led, LOW);
+         daySleep = 1;
+         daySleepHour = now.hour()+1;
+         if(daySleepHour>23) daySleepHour -= 24;
+         daySleepMin = now.minute();
+     }
+     if (readString.indexOf("?sleep2hours") >0){
+         digitalWrite(led, LOW);
+         digitalWrite(led, LOW);
+         daySleep = 1;
+         daySleepHour = now.hour()+2;
+         if(daySleepHour>23) daySleepHour -= 24;
+         daySleepMin = now.minute();
+     }
+     
+     if (readString.indexOf("?radioonset") >0){
+         EEPROM.write(addr_on_godzina, 19);
+         EEPROM.write(addr_on_minuta, 00);
+
+     }
+     if (readString.indexOf("?radiooffset") >0){
+         EEPROM.write(addr_off_godzina, 19);
+         EEPROM.write(addr_off_minuta, 59);
+     }
      //clearing string for next read
      readString="";  
   }
   if(daySync != now.day() && now.hour() == 0)
     syncTime();
   //////////////////////////////////////////////
-  //zalaczenie radia rano
+  //zalaczenie radia - budzika
   //
 
-  if(dayAlarm != now.day() && now.hour() == 19 && now.minute() == 7)
+  if(dayAlarmOn != now.day() && now.hour() == (uint8_t)on_godzina && now.minute() == (uint8_t)on_minuta)
   {
     digitalWrite(led, LOW);
-    dayAlarm = now.day();
+    dayAlarmOn = now.day();
   }
 
   //////////////////////////////////////////////
-  //wylaczenie radia
+  //wylaczenie radia - budzika
   //
-  if(daySleep != now.day() && now.hour() == 19 && now.minute() == 8)
+  if(dayAlarmOff != now.day() && now.hour() == (uint8_t)off_godzina && now.minute() == (uint8_t)off_minuta)
   {
     digitalWrite(led, HIGH);
-    daySleep = now.day();
+    dayAlarmOff = now.day();
   }
+
+  //////////////////////////////////////////////
+  //wylaczenie radia - sleep
+  //
+  if(daySleep == 1 && now.hour() == daySleepHour && now.minute() == daySleepMin)
+  {
+    digitalWrite(led, HIGH);
+    daySleep = 0;
+  }
+
+  
 }
 
 void syncTime()
@@ -283,4 +352,13 @@ void sendNTPpacket(const char * address) {
   Udp.beginPacket(address, 123); // NTP requests are to port 123
   Udp.write(packetBuffer, NTP_PACKET_SIZE);
   Udp.endPacket();
+}
+
+void odczytBudzika()
+{
+budzik_conf = EEPROM.read(addr_conf);
+on_godzina = EEPROM.read(addr_on_godzina);
+on_minuta = EEPROM.read(addr_on_minuta);
+off_godzina = EEPROM.read(addr_off_godzina);
+off_minuta = EEPROM.read(addr_off_minuta);
 }
